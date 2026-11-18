@@ -102,6 +102,10 @@ MCP does not expose an agent-detach tool. Detaching is a manual user action in t
 
 Paseo agents receive finish, error, and permission notifications by default; set `notifyOnFinish: false` to disable them. External MCP clients use `get_agent_status` and `get_agent_activity` to check results.
 
+`create_agent` accepts an optional top-level `env` object that maps environment variable names
+to string values, for example `"env": { "MY_VARIABLE": "value" }`. These values are forwarded
+to the agent.
+
 ### Workspaces
 
 | Tool                | Function                                                                                                                                                                                                                                                                                                        |

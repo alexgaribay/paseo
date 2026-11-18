@@ -1193,6 +1193,10 @@ function createToolCatalog(
       "Required provider/model pair, for example codex/gpt-5.4.",
     ),
     labels: z.record(z.string(), z.string()).optional().describe("Labels to set on the agent"),
+    env: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe("Environment variable overrides passed through creation hooks to the agent."),
     settings: CreateAgentSettingsInputSchema.optional().describe(
       "Initial runtime settings for the new agent.",
     ),
@@ -1666,6 +1670,7 @@ function createToolCatalog(
           promptFailure: "throw",
           notifyOnFinish,
           background: parsedArgs.background,
+          env: parsedArgs.env,
           detached: resolvedArgs.detached,
           callerAgentId,
           callerContext,

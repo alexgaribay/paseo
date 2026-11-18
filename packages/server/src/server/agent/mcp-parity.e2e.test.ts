@@ -10,7 +10,12 @@ import { z } from "zod";
 import { AGENT_WAIT_TIMEOUT_MS } from "./mcp-shared.js";
 import { createTestPaseoDaemon, type TestPaseoDaemon } from "../test-utils/paseo-daemon.js";
 import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
-import type { AgentClient, AgentProvider, AgentSessionConfig } from "./agent-sdk-types.js";
+import type {
+  AgentClient,
+  AgentLaunchContext,
+  AgentProvider,
+  AgentSessionConfig,
+} from "./agent-sdk-types.js";
 import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
 import { DaemonClient } from "../test-utils/daemon-client.js";
 import { parseAgentMessage } from "./agent-messages/index.js";
@@ -147,6 +152,7 @@ let parentAgentId: string;
 let parentAgentCwd: string;
 let worktreeRepoCwd: string;
 let launchConfigsByProvider: Record<AgentProvider, AgentSessionConfig[]>;
+const launchContextsByAgentId = new Map<string, AgentLaunchContext>();
 
 const seededAgentProfile = {
   id: "ui-profile",
@@ -170,6 +176,9 @@ function createRecordingAgentClients(): Record<AgentProvider, AgentClient> {
       capabilities: client.capabilities,
       createSession: async (config, launchContext, options) => {
         launchConfigs.push(config);
+        if (launchContext?.agentId) {
+          launchContextsByAgentId.set(launchContext.agentId, launchContext);
+        }
         return await client.createSession(config, launchContext, options);
       },
       resumeSession: async (handle, overrides, launchContext) =>
@@ -679,6 +688,48 @@ describe("Suite A: Core Fixes", () => {
       await archiveAgentIfPresent(agentId);
     }
   });
+
+  test.each([
+    { scope: "top-level", legacy: false },
+    { scope: "agent-scoped", legacy: false },
+    { scope: "top-level", legacy: true },
+    { scope: "agent-scoped", legacy: true },
+  ])(
+    "create_agent passes env to the provider over $scope MCP, legacy=$legacy",
+    async ({ scope, legacy }) => {
+      let agentId: string | null = null;
+      const env = {
+        CUSTOM_SETTING: "enabled",
+        CUSTOM_EMPTY: "",
+        CUSTOM_VALUE: "spaces = and 中文",
+      };
+      try {
+        if (legacy) {
+          agentId = await (scope === "top-level"
+            ? createTopLevelAgent({ env })
+            : createChildAgent({ env }));
+        } else {
+          const client = scope === "top-level" ? topLevelClient : agentScopedClient;
+          const payload = await callToolStructured(client, "create_agent", {
+            title: "Environment overrides",
+            provider: "claude/claude-test-model",
+            initialPrompt: "say done and stop",
+            settings: { modeId: "bypassPermissions" },
+            notifyOnFinish: false,
+            env,
+          });
+          agentId = str(payload.agentId);
+        }
+        expect(launchContextsByAgentId.get(agentId)?.env).toMatchObject(env);
+        await daemonHandle.daemon.agentManager.flush();
+        const record = await daemonHandle.daemon.agentStorage.get(agentId);
+        expect(record?.launchEnv).toEqual(env);
+      } finally {
+        if (agentId) launchContextsByAgentId.delete(agentId);
+        await archiveAgentIfPresent(agentId);
+      }
+    },
+  );
 
   test("create_agent accepts provider features over MCP", async () => {
     let agentId: string | null = null;

@@ -94,6 +94,9 @@ MCP 不提供解除 Agent 父子关系的工具。解除关系是用户在应用
 
 Paseo Agent 默认会收到完成、错误和权限通知；设置 `notifyOnFinish: false` 可以关闭它们。外部 MCP 客户端使用 `get_agent_status` 和 `get_agent_activity` 查看结果。
 
+`create_agent` 接受可选的顶层 `env` 对象，将环境变量名映射到字符串值，例如
+`"env": { "MY_VARIABLE": "value" }`。这些值会转发给 Agent。
+
 ### 工作区 {#workspaces}
 
 | 工具                | 功能                                                                                                                                                                                                                                             |
